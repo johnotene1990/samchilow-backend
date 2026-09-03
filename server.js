@@ -94,7 +94,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
 // =============================
-// API ROUTES
+// API ROUTES (Standard /api prefix)
 // =============================
 app.use("/api/bookings", bookingRoutes);
 app.use("/api/auth", authRoutes);
@@ -102,6 +102,16 @@ app.use("/api/users", userRoutes);
 app.use("/api/sso", ssoRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/admin", adminRoutes);
+
+// =============================
+// FALLBACK ALIAS ROUTES (Prevents 404 if frontend omits /api)
+// =============================
+app.use("/auth", authRoutes);
+app.use("/users", userRoutes);
+app.use("/bookings", bookingRoutes);
+app.use("/contact", contactRoutes);
+app.use("/sso", ssoRoutes);
+app.use("/admin", adminRoutes);
 
 // =============================
 // HEALTH & TEST ROUTES
