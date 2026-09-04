@@ -23,21 +23,19 @@ const isSecure =
     : emailPort === 465;
 
 let activeTransporter = null;
-let isUsingFallback = false;
 
 const createPrimaryTransporter = () => {
   return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || "mail.samchilowmultibiz.com",
+    host: process.env.EMAIL_HOST || "131.153.147.186",
     port: emailPort,
     secure: isSecure,
-    pool: false,
     auth: {
       user: process.env.EMAIL_USER || "info@samchilowmultibiz.com",
       pass: emailPassword,
     },
-    connectionTimeout: 12000,
-    greetingTimeout: 12000,
-    socketTimeout: 12000,
+    connectionTimeout: 15000,
+    greetingTimeout: 15000,
+    socketTimeout: 15000,
     tls: {
       rejectUnauthorized: false,
     },
@@ -58,24 +56,28 @@ const verifyEmailTransporter = async () => {
     console.log("✅ Primary SMTP Connection Ready for Samchilow MultiBiz.");
     return true;
   } catch (error) {
-    console.warn(`⚠️ Primary SMTP Warning: ${error.message}. Activating Ethereal sandbox.`);
-    try {
-      const testAccount = await nodemailer.createTestAccount();
-      activeTransporter = nodemailer.createTransport({
-        host: "smtp.ethereal.email",
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass,
-        },
-      });
-      isUsingFallback = true;
-      return true;
-    } catch (fallbackError) {
-      console.error("❌ Failed to initialize fallback transporter:", fallbackError.message);
-      return false;
+    console.warn(`⚠️ Primary SMTP Warning: ${error.message}`);
+    // Only fallback to Ethereal in development environment if explicitly needed
+    if (process.env.NODE_ENV === "development") {
+      try {
+        const testAccount = await nodemailer.createTestAccount();
+        activeTransporter = nodemailer.createTransport({
+          host: "smtp.ethereal.email",
+          port: 587,
+          secure: false,
+          auth: {
+            user: testAccount.user,
+            pass: testAccount.pass,
+          },
+        });
+        console.log("⚠️ Ethereal fallback transporter initialized for local dev.");
+        return true;
+      } catch (fallbackError) {
+        console.error("❌ Failed to initialize fallback transporter:", fallbackError.message);
+        return false;
+      }
     }
+    return false;
   }
 };
 
@@ -89,9 +91,10 @@ const sendEmail = async ({ to, subject, text, html, replyTo, fromName }) => {
     if (!subject) throw new Error("Email subject is required.");
 
     const senderTitle = fromName || "Samchilow MultiBiz Limited";
+    const senderEmail = process.env.EMAIL_USER || "info@samchilowmultibiz.com";
 
     const mailOptions = {
-      from: `"${senderTitle}" <${process.env.EMAIL_USER || "info@samchilowmultibiz.com"}>`,
+      from: `"${senderTitle}" <${senderEmail}>`,
       to,
       subject,
       text: text || "",
@@ -108,12 +111,7 @@ const sendEmail = async ({ to, subject, text, html, replyTo, fromName }) => {
 
     const currentTransporter = getTransporter();
     const info = await currentTransporter.sendMail(mailOptions);
-
-    if (isUsingFallback) {
-      const previewUrl = nodemailer.getTestMessageUrl(info);
-      console.log("🔗 Demo Email Preview Link:", previewUrl);
-    }
-
+    console.log(`✉️ Email successfully dispatched to: ${to} (MessageID: ${info.messageId})`);
     return info;
   } catch (error) {
     console.error("❌ EMAIL SEND ERROR:", error.message);

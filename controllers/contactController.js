@@ -27,37 +27,40 @@ const submitContact = async (req, res) => {
       website: siteContext,
     });
 
-    // 2. NON-BLOCKING BACKGROUND EMAIL DISPATCH (ADMIN & CLIENT)
-    // Ensures response completes instantly (<200ms) without hanging HTTP request
+    // 2. PARALLEL EMAIL DISPATCH WITH PROMISE.ALLSETTLED
+    // Ensures both emails complete before Render suspends the request container,
+    // while guaranteeing the user gets a 201 response even if SMTP experiences delay.
+    const emailResults = await Promise.allSettled([
+      sendContactEmail({
+        name,
+        email,
+        phone,
+        subject,
+        message,
+        website: siteContext,
+      }),
+      sendClientConfirmationEmail({
+        name,
+        email,
+        website: siteContext,
+      }),
+    ]);
 
-    // Send notification to company (info@samchilowmultibiz.com)
-    sendContactEmail({
-      name,
-      email,
-      phone,
-      subject,
-      message,
-      website: siteContext,
-    }).catch((emailErr) => {
+    // Log any email failures for debugging on Render
+    if (emailResults[0].status === "rejected") {
       console.error(
-        "⚠️ Company admin notification email failed in background:",
-        emailErr.message
+        "⚠️ Company admin notification email failed:",
+        emailResults[0].reason?.message || emailResults[0].reason
       );
-    });
-
-    // Send acknowledgement to client
-    sendClientConfirmationEmail({
-      name,
-      email,
-      website: siteContext,
-    }).catch((emailErr) => {
+    }
+    if (emailResults[1].status === "rejected") {
       console.error(
-        "⚠️ Client confirmation email failed in background:",
-        emailErr.message
+        "⚠️ Client confirmation email failed:",
+        emailResults[1].reason?.message || emailResults[1].reason
       );
-    });
+    }
 
-    // 3. Instant Success Response
+    // 3. Success Response
     return res.status(201).json({
       message: "Your enquiry has been sent successfully. Our team will contact you shortly.",
       data: contactEntry,
