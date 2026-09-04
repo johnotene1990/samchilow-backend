@@ -74,6 +74,11 @@ const submitContact = async (req, res) => {
 };
 
 // =============================
+// ALIAS FOR ROUTER COMPATIBILITY
+// =============================
+const sendContactMessage = submitContact;
+
+// =============================
 // GET ALL ENQUIRIES (ADMIN)
 // =============================
 const getContacts = async (req, res) => {
@@ -88,5 +93,6 @@ const getContacts = async (req, res) => {
 
 module.exports = {
   submitContact,
+  sendContactMessage,
   getContacts,
 };
