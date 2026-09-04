@@ -1,104 +1,89 @@
 const Contact = require("../models/Contact");
 const { sendContactEmail, sendClientConfirmationEmail } = require("../utils/email");
 
-const sendContactMessage = async (req, res) => {
+// =============================
+// SUBMIT CONTACT ENQUIRY
+// =============================
+const submitContact = async (req, res) => {
   try {
-    const {
+    const { name, email, phone, subject, message, website } = req.body;
+
+    if (!name || !email || !message) {
+      return res.status(400).json({
+        message: "Please provide name, email, and message",
+      });
+    }
+
+    // Determine target website context (defaults to logistics if unspecified)
+    const siteContext = website || "logistics";
+
+    // 1. Save Enquiry to Database
+    const contactEntry = await Contact.create({
+      name,
+      email: email.toLowerCase(),
+      phone: phone || "",
+      subject: subject || "New Contact Enquiry",
+      message,
+      website: siteContext,
+    });
+
+    // 2. NON-BLOCKING BACKGROUND EMAIL DISPATCH (ADMIN & CLIENT)
+    // Ensures response completes instantly (<200ms) without hanging HTTP request
+
+    // Send notification to company (info@samchilowmultibiz.com)
+    sendContactEmail({
       name,
       email,
       phone,
       subject,
       message,
-      website,
-    } = req.body;
-
-    console.log("====================================");
-    console.log("📩 NEW CONTACT ENQUIRY");
-    console.log("Website:", website);
-    console.log("Name:", name);
-    console.log("Email:", email);
-    console.log("====================================");
-
-    // ================================
-    // VALIDATION
-    // ================================
-
-    if (!name || !email || !message) {
-      return res.status(400).json({
-        success: false,
-        message: "Name, email and message are required.",
-      });
-    }
-
-    if (!website || !["logistics", "construction"].includes(website.toLowerCase())) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid website source. Must be 'logistics' or 'construction'.",
-      });
-    }
-
-    // ================================
-    // SAVE TO DATABASE
-    // ================================
-
-    const enquiry = await Contact.create({
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      phone: phone?.trim() || "",
-      subject: subject?.trim() || "General Enquiry",
-      message: message.trim(),
-      website: website.toLowerCase(),
+      website: siteContext,
+    }).catch((emailErr) => {
+      console.error(
+        "⚠️ Company admin notification email failed in background:",
+        emailErr.message
+      );
     });
 
-    console.log("✅ Enquiry saved to MongoDB ID:", enquiry._id);
-
-    // ================================
-    // SOCKET.IO REAL-TIME UPDATE (ADMIN PANEL)
-    // ================================
-
-    if (req.io) {
-      req.io.emit("new-contact", enquiry);
-    }
-
-    // ================================
-    // ASYNCHRONOUS EMAIL DELIVERIES
-    // ================================
-    
-    // Send email to Admin
-    sendContactEmail({
-      name: enquiry.name,
-      email: enquiry.email,
-      phone: enquiry.phone,
-      subject: enquiry.subject,
-      message: enquiry.message,
-      website: enquiry.website,
-    }).catch((err) => console.error("⚠️ Admin notification email failed:", err.message));
-
-    // Send confirmation email to Client
+    // Send acknowledgement to client
     sendClientConfirmationEmail({
-      name: enquiry.name,
-      email: enquiry.email,
-      website: enquiry.website,
-    }).catch((err) => console.error("⚠️ Client confirmation email failed:", err.message));
+      name,
+      email,
+      website: siteContext,
+    }).catch((emailErr) => {
+      console.error(
+        "⚠️ Client confirmation email failed in background:",
+        emailErr.message
+      );
+    });
 
-    // Return immediate success to client (database record is already secured)
+    // 3. Instant Success Response
     return res.status(201).json({
-      success: true,
-      message:
-        "Your enquiry has been sent successfully. Our team will contact you shortly.",
-      enquiry,
+      message: "Your enquiry has been sent successfully. Our team will contact you shortly.",
+      data: contactEntry,
     });
   } catch (error) {
-    console.error("❌ CONTACT CONTROLLER ERROR:", error);
-
+    console.error("Submit contact enquiry error:", error);
     return res.status(500).json({
-      success: false,
-      message:
-        "We could not send your enquiry at the moment. Please try again later.",
+      message: "Server error while submitting your enquiry. Please try again later.",
     });
   }
 };
 
+// =============================
+// GET ALL ENQUIRIES (ADMIN)
+// =============================
+const getContacts = async (req, res) => {
+  try {
+    const contacts = await Contact.find().sort({ createdAt: -1 });
+    return res.json({ count: contacts.length, contacts });
+  } catch (error) {
+    console.error("Get contacts error:", error);
+    return res.status(500).json({ message: "Server error while fetching contacts" });
+  }
+};
+
 module.exports = {
-  sendContactMessage,
+  submitContact,
+  getContacts,
 };

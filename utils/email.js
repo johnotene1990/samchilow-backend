@@ -22,20 +22,6 @@ const isSecure =
     ? process.env.EMAIL_SECURE === "true"
     : emailPort === 465;
 
-console.log("==============================================");
-console.log("SHARED SMTP CONFIGURATION (LOGISTICS & CONSTRUCTION)");
-console.log("EMAIL_HOST:", process.env.EMAIL_HOST);
-console.log("EMAIL_PORT:", emailPort);
-console.log("EMAIL_SECURE:", isSecure);
-console.log("EMAIL_USER:", process.env.EMAIL_USER);
-console.log(
-  "EMAIL_PASS:",
-  emailPassword
-    ? `LOADED (${emailPassword.length} characters)`
-    : "NOT LOADED"
-);
-console.log("==============================================");
-
 let activeTransporter = null;
 let isUsingFallback = false;
 
@@ -46,14 +32,14 @@ const createPrimaryTransporter = () => {
     secure: isSecure,
     pool: false,
     auth: {
-      user: process.env.EMAIL_USER,
+      user: process.env.EMAIL_USER || "info@samchilowmultibiz.com",
       pass: emailPassword,
     },
-    connectionTimeout: 12000, // Increased timeout for Render cloud hosting
+    connectionTimeout: 12000,
     greetingTimeout: 12000,
     socketTimeout: 12000,
     tls: {
-      rejectUnauthorized: false, // Prevents SSL certificate validation failures on cPanel
+      rejectUnauthorized: false,
     },
   });
 };
@@ -69,26 +55,12 @@ const getTransporter = () => activeTransporter;
 const verifyEmailTransporter = async () => {
   try {
     await activeTransporter.verify();
-
-    console.log("==============================================");
-    console.log("✅ PRIMARY SMTP CONNECTION SUCCESSFUL");
-    console.log("==============================================");
-    console.log("Email server ready for Logistics & Construction.");
-    console.log(`SMTP: ${process.env.EMAIL_HOST}:${emailPort}`);
-    console.log(`Mailbox: ${process.env.EMAIL_USER}`);
-    console.log("==============================================");
-
+    console.log("✅ Primary SMTP Connection Ready for Samchilow MultiBiz.");
     return true;
   } catch (error) {
-    console.warn("==============================================");
-    console.warn("⚠️ PRIMARY SMTP TIMED OUT OR REJECTED");
-    console.warn("==============================================");
-    console.warn(`Reason: ${error.message} (${error.code || "ETIMEDOUT"})`);
-    console.warn("👉 Activating Ethereal Email sandbox for local dev...");
-
+    console.warn(`⚠️ Primary SMTP Warning: ${error.message}. Activating Ethereal sandbox.`);
     try {
       const testAccount = await nodemailer.createTestAccount();
-
       activeTransporter = nodemailer.createTransport({
         host: "smtp.ethereal.email",
         port: 587,
@@ -98,15 +70,7 @@ const verifyEmailTransporter = async () => {
           pass: testAccount.pass,
         },
       });
-
       isUsingFallback = true;
-
-      console.log("==============================================");
-      console.log("✅ DEV FALLBACK TRANSPORTER ACTIVE (ETHEREAL)");
-      console.log("==============================================");
-      console.log("Enquiries will output clickable preview links in terminal.");
-      console.log("==============================================");
-
       return true;
     } catch (fallbackError) {
       console.error("❌ Failed to initialize fallback transporter:", fallbackError.message);
@@ -121,18 +85,13 @@ const verifyEmailTransporter = async () => {
 
 const sendEmail = async ({ to, subject, text, html, replyTo, fromName }) => {
   try {
-    if (!to) {
-      throw new Error("Email recipient is required.");
-    }
-
-    if (!subject) {
-      throw new Error("Email subject is required.");
-    }
+    if (!to) throw new Error("Email recipient is required.");
+    if (!subject) throw new Error("Email subject is required.");
 
     const senderTitle = fromName || "Samchilow MultiBiz Limited";
 
     const mailOptions = {
-      from: `"${senderTitle}" <${process.env.EMAIL_USER}>`,
+      from: `"${senderTitle}" <${process.env.EMAIL_USER || "info@samchilowmultibiz.com"}>`,
       to,
       subject,
       text: text || "",
@@ -147,20 +106,12 @@ const sendEmail = async ({ to, subject, text, html, replyTo, fromName }) => {
       mailOptions.replyTo = replyTo;
     }
 
-    console.log("📧 Sending email to:", to);
-
     const currentTransporter = getTransporter();
     const info = await currentTransporter.sendMail(mailOptions);
 
-    console.log("✅ Email sent successfully.");
-    console.log("Message ID:", info.messageId);
-
     if (isUsingFallback) {
       const previewUrl = nodemailer.getTestMessageUrl(info);
-      console.log("==============================================");
-      console.log("🔗 DEMO EMAIL PREVIEW LINK:");
-      console.log(previewUrl);
-      console.log("==============================================");
+      console.log("🔗 Demo Email Preview Link:", previewUrl);
     }
 
     return info;
@@ -171,7 +122,7 @@ const sendEmail = async ({ to, subject, text, html, replyTo, fromName }) => {
 };
 
 // ======================================================
-// CONTACT ENQUIRY HANDLER FOR BOTH WEBSITES (ADMIN)
+// CONTACT ENQUIRY HANDLER FOR COMPANY (INFO@SAMCHILOWMULTIBIZ.COM)
 // ======================================================
 
 const sendContactEmail = async ({
@@ -182,7 +133,8 @@ const sendContactEmail = async ({
   message,
   website,
 }) => {
-  const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+  // Target company address
+  const companyEmail = process.env.ADMIN_EMAIL || "info@samchilowmultibiz.com";
 
   const isConstruction = website === "construction";
   const websiteName = isConstruction
@@ -194,9 +146,9 @@ const sendContactEmail = async ({
     : `New Contact Enquiry - ${websiteName}`;
 
   const text = `
-New Contact Enquiry
+New Contact Enquiry Received
 
-Website Source: ${websiteName}
+Source Website: ${websiteName}
 Name: ${name || "Not provided"}
 Email: ${email || "Not provided"}
 Phone: ${phone || "Not provided"}
@@ -206,7 +158,7 @@ Message:
 ${message || "No message"}
 
 ------------------------------------------
-Automated notification from Samchilow Platform.
+Automated notification for Samchilow MultiBiz Ltd.
 `;
 
   const html = `
@@ -217,14 +169,14 @@ Automated notification from Samchilow Platform.
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; color: #222; }
     .container { max-width: 650px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-    .header { background: ${isConstruction ? "#1e3a8a" : "#111827"}; color: #ffffff; padding: 24px; }
-    .header h2 { margin: 0; font-size: 20px; font-weight: 600; }
+    .header { background: #000000; border-bottom: 3px solid #D4AF37; color: #ffffff; padding: 24px; }
+    .header h2 { margin: 0; font-size: 20px; color: #D4AF37; }
     .header p { margin: 6px 0 0; opacity: 0.85; font-size: 14px; }
     .content { padding: 24px; }
     .row { margin-bottom: 16px; }
     .label { font-weight: 600; color: #4b5563; margin-bottom: 4px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
     .value { background: #f9fafb; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb; font-size: 14px; color: #111827; }
-    .footer { padding: 16px 24px; background: #f9fafb; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; }
+    .footer { padding: 16px 24px; background: #f9fafb; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; text-align: center; }
   </style>
 </head>
 <body>
@@ -239,15 +191,15 @@ Automated notification from Samchilow Platform.
         <div class="value">${escapeHtml(websiteName)}</div>
       </div>
       <div class="row">
-        <div class="label">Name</div>
+        <div class="label">Client Name</div>
         <div class="value">${escapeHtml(name) || "Not provided"}</div>
       </div>
       <div class="row">
-        <div class="label">Email</div>
+        <div class="label">Client Email</div>
         <div class="value">${escapeHtml(email) || "Not provided"}</div>
       </div>
       <div class="row">
-        <div class="label">Phone</div>
+        <div class="label">Phone Number</div>
         <div class="value">${escapeHtml(phone) || "Not provided"}</div>
       </div>
       <div class="row">
@@ -262,7 +214,7 @@ Automated notification from Samchilow Platform.
       </div>
     </div>
     <div class="footer">
-      Automated notification sent to ${escapeHtml(adminEmail)}
+      Automated Enquiry Notification &bull; Samchilow MultiBiz Limited
     </div>
   </div>
 </body>
@@ -270,7 +222,7 @@ Automated notification from Samchilow Platform.
 `;
 
   return sendEmail({
-    to: adminEmail,
+    to: companyEmail,
     subject: emailSubject,
     text,
     html,
@@ -289,12 +241,12 @@ const sendClientConfirmationEmail = async ({ name, email, website }) => {
     ? "Samchilow MultiBiz Construction"
     : "Samchilow Logistics";
 
-  const emailSubject = `We have received your enquiry - ${websiteName}`;
+  const emailSubject = `We received your enquiry - ${websiteName}`;
 
   const text = `
 Dear ${name},
 
-Thank you for reaching out to ${websiteName}.
+Thank you for contacting ${websiteName}.
 We have received your enquiry and our team will get back to you shortly.
 
 Best regards,
@@ -309,8 +261,9 @@ ${websiteName} Team
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; color: #222; }
     .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-    .header { background: ${isConstruction ? "#1e3a8a" : "#111827"}; color: #ffffff; padding: 24px; text-align: center; }
-    .content { padding: 24px; font-size: 15px; line-height: 1.6; color: #333333; }
+    .header { background: #000000; border-bottom: 3px solid #D4AF37; color: #ffffff; padding: 24px; text-align: center; }
+    .header h2 { margin: 0; color: #D4AF37; font-size: 22px; }
+    .content { padding: 28px; font-size: 15px; line-height: 1.6; color: #333333; }
     .footer { padding: 16px 24px; background: #f9fafb; font-size: 12px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; }
   </style>
 </head>
@@ -322,12 +275,12 @@ ${websiteName} Team
     <div class="content">
       <p>Dear <strong>${escapeHtml(name)}</strong>,</p>
       <p>Thank you for reaching out to <strong>${escapeHtml(websiteName)}</strong>.</p>
-      <p>We have successfully received your message and our support team is currently reviewing it. We will get back to you as soon as possible.</p>
+      <p>We have successfully received your message. Our representative is reviewing your request and will reach out to you shortly via email or phone.</p>
       <br/>
       <p>Best regards,<br/><strong>${escapeHtml(websiteName)} Team</strong></p>
     </div>
     <div class="footer">
-      This is an automated response. Please do not reply directly to this email.
+      This is an automated acknowledgment. Please do not reply directly to this email.
     </div>
   </div>
 </body>
