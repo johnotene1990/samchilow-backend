@@ -3,7 +3,7 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 
 const User = require("../models/User");
-const { sendEmail } = require("../utils/email");
+const { sendEmail, sendWelcomeEmail } = require("../utils/email");
 
 // =============================
 // REGISTER USER
@@ -40,44 +40,18 @@ const registerUser = async (req, res) => {
     // Detect client origin for login link in email
     const clientOrigin = req.headers.origin || process.env.LOGISTICS_URL || "http://localhost:5173";
 
-    try {
-      await sendEmail({
-        fromName: "Samchilow Platform",
-        to: user.email,
-        subject: "Welcome to Samchilow",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; color: #000; border: 1px solid #eee;">
-            <div style="background: #000; padding: 30px; text-align: center;">
-              <h1 style="margin: 0; color: #D4AF37; font-size: 28px;">SAMCHILOW</h1>
-              <div style="width: 60px; height: 3px; background: #D4AF37; margin: 12px auto 0;"></div>
-            </div>
-            <div style="padding: 35px 30px;">
-              <h2 style="color: #000; margin-top: 0;">Welcome, ${user.name}!</h2>
-              <p style="font-size: 16px; line-height: 1.7; color: #333;">
-                Thank you for creating an account with <strong>Samchilow.</strong>
-              </p>
-              <div style="background: #f8f8f8; border-left: 4px solid #D4AF37; padding: 18px; margin: 25px 0;">
-                <p style="margin: 5px 0;"><strong>Name:</strong> ${user.name}</p>
-                <p style="margin: 5px 0;"><strong>Email:</strong> ${user.email}</p>
-                <p style="margin: 5px 0;"><strong>Phone:</strong> ${user.phone}</p>
-              </div>
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="${clientOrigin}/login" style="display: inline-block; background: #D4AF37; color: #000; text-decoration: none; padding: 13px 30px; border-radius: 6px; font-weight: bold; font-size: 15px;">
-                  Login to Your Account
-                </a>
-              </div>
-            </div>
-            <div style="background: #000; padding: 20px; text-align: center;">
-              <p style="margin: 0; color: #D4AF37; font-size: 14px; font-weight: bold;">Samchilow Platform</p>
-            </div>
-          </div>
-        `,
-      });
-    } catch (emailError) {
-      console.error("Welcome email could not be sent:", emailError);
-    }
+    // ASYNCHRONOUS NON-BLOCKING WELCOME EMAIL
+    // Registration responds instantly (<200ms) without waiting for SMTP transport
+    sendWelcomeEmail({
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      clientOrigin,
+    }).catch((emailError) => {
+      console.error("⚠️ Welcome email sending failed in background:", emailError.message);
+    });
 
-    res.status(201).json({
+    return res.status(201).json({
       message: "Account created successfully",
       user: {
         id: user._id,
@@ -89,7 +63,7 @@ const registerUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Registration error:", error);
-    res.status(500).json({ message: "Server error during registration" });
+    return res.status(500).json({ message: "Server error during registration" });
   }
 };
 
@@ -133,12 +107,12 @@ const loginUser = async (req, res) => {
     // Cross-domain cookie configuration
     res.cookie("token", token, {
       httpOnly: true,
-      secure: isProduction, 
+      secure: isProduction,
       sameSite: isProduction ? "none" : "lax", // 'none' allows cookies across distinct domains on HTTPS
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
-    res.json({
+    return res.json({
       message: "Login successful",
       user: {
         id: user._id,
@@ -150,7 +124,7 @@ const loginUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Login error:", error);
-    res.status(500).json({ message: "Server error during login" });
+    return res.status(500).json({ message: "Server error during login" });
   }
 };
 
@@ -167,7 +141,7 @@ const logoutUser = (req, res) => {
     expires: new Date(0),
   });
 
-  res.json({ message: "Logout successful" });
+  return res.json({ message: "Logout successful" });
 };
 
 // =============================
@@ -204,7 +178,8 @@ const forgotPassword = async (req, res) => {
     const origin = req.headers.origin || "http://localhost:5173";
     const resetUrl = `${origin}/reset-password/${resetToken}`;
 
-    await sendEmail({
+    // NON-BLOCKING PASSWORD RESET EMAIL
+    sendEmail({
       fromName: "Samchilow Support",
       to: user.email,
       subject: "Reset Your Samchilow Password",
@@ -221,14 +196,16 @@ const forgotPassword = async (req, res) => {
           <p>If you did not request this, please ignore this email.</p>
         </div>
       `,
+    }).catch((emailError) => {
+      console.error("⚠️ Password reset email failed in background:", emailError.message);
     });
 
-    res.json({
+    return res.json({
       message: "If an account exists with this email, a password reset link has been sent.",
     });
   } catch (error) {
     console.error("Forgot password error:", error);
-    res.status(500).json({ message: "Unable to process password reset request" });
+    return res.status(500).json({ message: "Unable to process password reset request" });
   }
 };
 
@@ -269,12 +246,12 @@ const resetPassword = async (req, res) => {
 
     await user.save();
 
-    res.json({
+    return res.json({
       message: "Password reset successfully. You can now log in.",
     });
   } catch (error) {
     console.error("Reset password error:", error);
-    res.status(500).json({ message: "Unable to reset password" });
+    return res.status(500).json({ message: "Unable to reset password" });
   }
 };
 
@@ -322,10 +299,10 @@ const changePassword = async (req, res) => {
 
     await user.save();
 
-    res.json({ message: "Password changed successfully" });
+    return res.json({ message: "Password changed successfully" });
   } catch (error) {
     console.error("Change password error:", error);
-    res.status(500).json({ message: "Unable to change password" });
+    return res.status(500).json({ message: "Unable to change password" });
   }
 };
 

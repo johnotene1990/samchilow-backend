@@ -41,7 +41,7 @@ let isUsingFallback = false;
 
 const createPrimaryTransporter = () => {
   return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST,
+    host: process.env.EMAIL_HOST || "mail.samchilowmultibiz.com",
     port: emailPort,
     secure: isSecure,
     pool: false,
@@ -49,11 +49,11 @@ const createPrimaryTransporter = () => {
       user: process.env.EMAIL_USER,
       pass: emailPassword,
     },
-    connectionTimeout: 4000,
-    greetingTimeout: 4000,
-    socketTimeout: 4000,
+    connectionTimeout: 12000, // Increased timeout for Render cloud hosting
+    greetingTimeout: 12000,
+    socketTimeout: 12000,
     tls: {
-      rejectUnauthorized: false,
+      rejectUnauthorized: false, // Prevents SSL certificate validation failures on cPanel
     },
   });
 };
@@ -81,7 +81,7 @@ const verifyEmailTransporter = async () => {
     return true;
   } catch (error) {
     console.warn("==============================================");
-    console.warn("⚠️ PRIMARY SMTP TIMED OUT (LOCAL PORT BLOCKED)");
+    console.warn("⚠️ PRIMARY SMTP TIMED OUT OR REJECTED");
     console.warn("==============================================");
     console.warn(`Reason: ${error.message} (${error.code || "ETIMEDOUT"})`);
     console.warn("👉 Activating Ethereal Email sandbox for local dev...");
@@ -165,13 +165,13 @@ const sendEmail = async ({ to, subject, text, html, replyTo, fromName }) => {
 
     return info;
   } catch (error) {
-    console.error("❌ EMAIL SEND ERROR:", error);
+    console.error("❌ EMAIL SEND ERROR:", error.message);
     throw error;
   }
 };
 
 // ======================================================
-// CONTACT ENQUIRY HANDLER FOR BOTH WEBSITES
+// CONTACT ENQUIRY HANDLER FOR BOTH WEBSITES (ADMIN)
 // ======================================================
 
 const sendContactEmail = async ({
@@ -279,6 +279,111 @@ Automated notification from Samchilow Platform.
   });
 };
 
+// ======================================================
+// CLIENT CONFIRMATION EMAIL HANDLER
+// ======================================================
+
+const sendClientConfirmationEmail = async ({ name, email, website }) => {
+  const isConstruction = website === "construction";
+  const websiteName = isConstruction
+    ? "Samchilow MultiBiz Construction"
+    : "Samchilow Logistics";
+
+  const emailSubject = `We have received your enquiry - ${websiteName}`;
+
+  const text = `
+Dear ${name},
+
+Thank you for reaching out to ${websiteName}.
+We have received your enquiry and our team will get back to you shortly.
+
+Best regards,
+${websiteName} Team
+`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; color: #222; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .header { background: ${isConstruction ? "#1e3a8a" : "#111827"}; color: #ffffff; padding: 24px; text-align: center; }
+    .content { padding: 24px; font-size: 15px; line-height: 1.6; color: #333333; }
+    .footer { padding: 16px 24px; background: #f9fafb; font-size: 12px; color: #6b7280; text-align: center; border-top: 1px solid #e5e7eb; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>Enquiry Received</h2>
+    </div>
+    <div class="content">
+      <p>Dear <strong>${escapeHtml(name)}</strong>,</p>
+      <p>Thank you for reaching out to <strong>${escapeHtml(websiteName)}</strong>.</p>
+      <p>We have successfully received your message and our support team is currently reviewing it. We will get back to you as soon as possible.</p>
+      <br/>
+      <p>Best regards,<br/><strong>${escapeHtml(websiteName)} Team</strong></p>
+    </div>
+    <div class="footer">
+      This is an automated response. Please do not reply directly to this email.
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+  return sendEmail({
+    to: email,
+    subject: emailSubject,
+    text,
+    html,
+    fromName: websiteName,
+  });
+};
+
+// ======================================================
+// SIGNUP / WELCOME EMAIL HANDLER
+// ======================================================
+
+const sendWelcomeEmail = async ({ name, email, phone, clientOrigin }) => {
+  const origin = clientOrigin || process.env.LOGISTICS_URL || "http://localhost:5173";
+
+  return sendEmail({
+    fromName: "Samchilow Platform",
+    to: email,
+    subject: "Welcome to Samchilow",
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; color: #000; border: 1px solid #eee;">
+        <div style="background: #000; padding: 30px; text-align: center;">
+          <h1 style="margin: 0; color: #D4AF37; font-size: 28px;">SAMCHILOW</h1>
+          <div style="width: 60px; height: 3px; background: #D4AF37; margin: 12px auto 0;"></div>
+        </div>
+        <div style="padding: 35px 30px;">
+          <h2 style="color: #000; margin-top: 0;">Welcome, ${escapeHtml(name)}!</h2>
+          <p style="font-size: 16px; line-height: 1.7; color: #333;">
+            Thank you for creating an account with <strong>Samchilow.</strong>
+          </p>
+          <div style="background: #f8f8f8; border-left: 4px solid #D4AF37; padding: 18px; margin: 25px 0;">
+            <p style="margin: 5px 0;"><strong>Name:</strong> ${escapeHtml(name)}</p>
+            <p style="margin: 5px 0;"><strong>Email:</strong> ${escapeHtml(email)}</p>
+            <p style="margin: 5px 0;"><strong>Phone:</strong> ${escapeHtml(phone)}</p>
+          </div>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${origin}/login" style="display: inline-block; background: #D4AF37; color: #000; text-decoration: none; padding: 13px 30px; border-radius: 6px; font-weight: bold; font-size: 15px;">
+              Login to Your Account
+            </a>
+          </div>
+        </div>
+        <div style="background: #000; padding: 20px; text-align: center;">
+          <p style="margin: 0; color: #D4AF37; font-size: 14px; font-weight: bold;">Samchilow Platform</p>
+        </div>
+      </div>
+    `,
+  });
+};
+
 module.exports = {
   get transporter() {
     return getTransporter();
@@ -286,4 +391,6 @@ module.exports = {
   verifyEmailTransporter,
   sendEmail,
   sendContactEmail,
+  sendClientConfirmationEmail,
+  sendWelcomeEmail,
 };

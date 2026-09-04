@@ -1,5 +1,5 @@
 const Contact = require("../models/Contact");
-const { sendContactEmail } = require("../utils/email");
+const { sendContactEmail, sendClientConfirmationEmail } = require("../utils/email");
 
 const sendContactMessage = async (req, res) => {
   try {
@@ -53,19 +53,6 @@ const sendContactMessage = async (req, res) => {
     console.log("✅ Enquiry saved to MongoDB ID:", enquiry._id);
 
     // ================================
-    // EMAIL ADMIN (info@samchilowmultibiz.com)
-    // ================================
-
-    await sendContactEmail({
-      name: enquiry.name,
-      email: enquiry.email,
-      phone: enquiry.phone,
-      subject: enquiry.subject,
-      message: enquiry.message,
-      website: enquiry.website,
-    });
-
-    // ================================
     // SOCKET.IO REAL-TIME UPDATE (ADMIN PANEL)
     // ================================
 
@@ -73,6 +60,28 @@ const sendContactMessage = async (req, res) => {
       req.io.emit("new-contact", enquiry);
     }
 
+    // ================================
+    // ASYNCHRONOUS EMAIL DELIVERIES
+    // ================================
+    
+    // Send email to Admin
+    sendContactEmail({
+      name: enquiry.name,
+      email: enquiry.email,
+      phone: enquiry.phone,
+      subject: enquiry.subject,
+      message: enquiry.message,
+      website: enquiry.website,
+    }).catch((err) => console.error("⚠️ Admin notification email failed:", err.message));
+
+    // Send confirmation email to Client
+    sendClientConfirmationEmail({
+      name: enquiry.name,
+      email: enquiry.email,
+      website: enquiry.website,
+    }).catch((err) => console.error("⚠️ Client confirmation email failed:", err.message));
+
+    // Return immediate success to client (database record is already secured)
     return res.status(201).json({
       success: true,
       message:
@@ -80,8 +89,7 @@ const sendContactMessage = async (req, res) => {
       enquiry,
     });
   } catch (error) {
-    console.error("❌ CONTACT EMAIL ERROR:");
-    console.error(error);
+    console.error("❌ CONTACT CONTROLLER ERROR:", error);
 
     return res.status(500).json({
       success: false,
