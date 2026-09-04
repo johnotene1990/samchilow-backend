@@ -1,48 +1,14 @@
-// const express = require("express");
-
-// const {
-//   sendContactMessage,
-// } = require("../controllers/contactController");
-
-// const router = express.Router();
-
-// // ============================================================
-// // CONTACT API
-// // ============================================================
-
-// router.post("/", (req, res, next) => {
-//   console.log("==============================================");
-//   console.log("📩 POST /api/contact RECEIVED");
-//   console.log("Request body:", req.body);
-//   console.log("==============================================");
-
-//   next();
-// }, sendContactMessage);
-
-// module.exports = router;
-
-
-// const express = require("express");
-
-// const {
-//   sendContactMessage,
-// } = require("../controllers/contactController");
-
-// const router = express.Router();
-
-// router.post("/", sendContactMessage);
-
-// module.exports = router;
-
-
-
-
 const express = require("express");
 const { sendContactMessage } = require("../controllers/contactController");
 
 const router = express.Router();
 
-// Matches POST /api/contact
-router.post("/", sendContactMessage);
+// Fallback safety check to prevent route crash on deploy
+const handleContact = typeof sendContactMessage === "function" 
+  ? sendContactMessage 
+  : (req, res) => res.status(500).json({ success: false, message: "Contact controller handler is missing" });
+
+// POST /api/contact
+router.post("/", handleContact);
 
 module.exports = router;
