@@ -39,6 +39,7 @@ export const sendMultiBizEnquiry = async ({ clientEmail, clientName, message }) 
       <h3>New Enquiry Received</h3>
       <p><strong>Name:</strong> ${clientName}</p>
       <p><strong>Email:</strong> ${clientEmail}</p>
+      <p><strong>Phone:</strong> ${clientEmail}</p>
       <p><strong>Message:</strong></p>
       <p>${message}</p>
     `,
@@ -50,13 +51,14 @@ export const sendMultiBizEnquiry = async ({ clientEmail, clientName, message }) 
  */
 export const sendLogisticsEnquiry = async ({ clientEmail, clientName, message }) => {
   return await sendEmail({
-    from: 'Samchilow Logistics <info@samchilowlogistics.com>',
-    to: process.env.ADMIN_EMAIL || 'info@samchilowlogistics.com',
+    from: 'Samchilow Logistics <info@samchilowmultibiz.com>',
+    to: process.env.ADMIN_EMAIL || 'info@samchilowmultibiz.com',
     subject: `New Logistics Enquiry from ${clientName}`,
     html: `
       <h3>New Logistics Enquiry</h3>
       <p><strong>Name:</strong> ${clientName}</p>
       <p><strong>Email:</strong> ${clientEmail}</p>
+      <p><strong>Phone:</strong> ${clientEmail}</p>
       <p><strong>Message:</strong></p>
       <p>${message}</p>
     `,

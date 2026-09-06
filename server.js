@@ -19,11 +19,6 @@ const bookingRoutes = require("./routes/bookingRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 
 // =============================
-// EMAIL
-// =============================
-const { verifyEmailTransporter } = require("./utils/email");
-
-// =============================
 // APP & SERVER SETUP
 // =============================
 const app = express();
@@ -175,11 +170,6 @@ app.use((err, req, res, next) => {
 // =============================
 // START SERVER
 // =============================
-server.listen(PORT, "0.0.0.0", async () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running on port ${PORT}`);
-  try {
-    await verifyEmailTransporter();
-  } catch (error) {
-    console.error("❌ Email transporter verification failed:", error);
-  }
 });
