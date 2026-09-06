@@ -1,5 +1,5 @@
 const Contact = require("../models/Contact");
-const { sendContactEmail, sendClientConfirmationEmail } = require("../utils/email");
+const { sendContactEmail, sendClientConfirmationEmail } = require("../utils/email.js");
 
 // =============================
 // SUBMIT CONTACT ENQUIRY
