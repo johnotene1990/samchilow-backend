@@ -27,9 +27,8 @@ const submitContact = async (req, res) => {
       website: siteContext,
     });
 
-    // 2. PARALLEL EMAIL DISPATCH WITH PROMISE.ALLSETTLED
-    // Ensures both emails complete before Render suspends the request container,
-    // while guaranteeing the user gets a 201 response even if SMTP experiences delay.
+    // 2. PARALLEL EMAIL DISPATCH WITH PROMISE.ALLSETTLED (RESEND API)
+    // Ensures both admin notification and client confirmation send via Resend
     const emailResults = await Promise.allSettled([
       sendContactEmail({
         name,
